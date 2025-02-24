@@ -1,0 +1,289 @@
+---
+title: "Gapminder: Prostate cancer"
+Author: "Jerome Lwali"
+format: dashboard
+theme: litera
+---
+# New Prostate Cancer cases 2019
+## Packages
+
+```{python}
+import pandas as pd
+import plotly.express as px
+import country_converter as coco
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from itables import show
+```
+
+## Data
+
+
+```{python}
+new_prostate_cancer = pd.read_csv("data/prostate_cancer_number_of_new_male_cases.csv")
+death_prostate_cancer =pd.read_csv("data/prostate_cancer_number_of_male_deaths.csv")
+```
+
+## Selecting data for only 2019
+
+
+```{python}
+new_prostate_cancer_2019 = new_prostate_cancer[["country", "2019"]]
+death_prostate_cancer_2019 = death_prostate_cancer[["country", "2019"]]
+```
+
+## Renaming columns 
+
+
+```{python}
+prostate_new_cases = new_prostate_cancer_2019.rename(columns={"2019": "new_cases"})
+prostate_deaths = death_prostate_cancer_2019.rename(
+    columns={"2019": "number_of_deaths"}
+)
+```
+## Cleaning data
+
+```{python}
+def process_value(val):
+    # Check if the value is a string and contains 'k'
+    if isinstance(val, str) and 'k' in val:
+        return float(val.replace('k', '')) * 1000
+    else:
+        # If it's already a float or doesn't contain 'k', return as a float
+        return float(val)
+
+# Apply the function to prostate new cases dataset
+prostate_new_cases['new_cases'] = prostate_new_cases['new_cases'].apply(process_value)
+```
+
+```{python}
+# Apply the function to prostate deaths dataset
+prostate_deaths['number_of_deaths'] = prostate_deaths['number_of_deaths'].apply(process_value)
+```
+
+## Adding country codes on datasets
+
+```{python}
+# Convert country names to ISO3 country codes
+prostate_new_cases["country_code"] = prostate_new_cases["country"].apply(
+    coco.convert, to="ISO3"
+)
+
+prostate_deaths["country_code"] = prostate_deaths["country"].apply(
+    coco.convert, to="ISO3"
+)
+```
+
+```{python}
+# Update the country codes for specific countries
+update_dict = {"UAE": "UAE", "Serbia and Montenegro": "SCG"}
+
+prostate_new_cases["country_code"] = prostate_new_cases.apply(
+    lambda row: (
+        update_dict[row["country"]]
+        if row["country"] in update_dict
+        else row["country_code"]
+    ),
+    axis=1,
+)
+
+prostate_deaths["country_code"] = prostate_deaths.apply(
+    lambda row: (
+        update_dict[row["country"]]
+        if row["country"] in update_dict
+        else row["country_code"]
+    ),
+    axis=1,
+)
+```
+
+```{python}
+# Data to display on value boxes
+# Find the row with the maximum and minimum number of cases
+max_cases_row = prostate_new_cases.loc[prostate_new_cases["new_cases"].idxmax()]
+
+min_cases_row = prostate_new_cases.loc[prostate_new_cases["new_cases"].idxmin()]
+
+max_deaths = prostate_deaths.loc[prostate_deaths["number_of_deaths"].idxmax()]
+
+min_deaths = prostate_deaths.loc[prostate_deaths["number_of_deaths"].idxmin()]
+
+# Display the country name and the number of cases
+country_with_max_cases = max_cases_row["country"]
+number_of_cases = max_cases_row["new_cases"]
+
+country_with_min_cases = min_cases_row["country"]
+min_number_of_cases = min_cases_row["new_cases"]
+
+country_max_deaths = max_deaths["country"]
+number_of_deaths = max_deaths["number_of_deaths"]
+
+country_min_deaths = min_deaths["country"]
+min_number_of_deaths = min_deaths["number_of_deaths"]
+```
+
+## {height="20%"}
+
+::: {.valuebox title="Highest number of new cases in 2019" color="danger" icon="arrow-up"}
+**Country:** `{python} country_with_max_cases`
+
+**Number of cases:** `{python} float(number_of_cases)`
+:::
+
+::: {.valuebox title="Lowest number of new cases in 2019" color="info" icon="arrow-down"}
+**Country:** `{python} country_with_min_cases`
+
+**Number of cases:** `{python} float(min_number_of_cases)`
+:::
+
+::: {.valuebox title="Highest number of deaths in 2019" color="danger" icon="arrow-up"}
+**Country:** `{python} country_max_deaths`
+
+**Number of deaths:** `{python} float(number_of_deaths)`
+:::
+
+::: {.valuebox title="Lowest number of deaths in 2019" color="info" icon="arrow-down"}
+**Country:** `{python} country_min_deaths`
+
+**Number of deaths:** `{python} float(min_number_of_deaths)`
+:::
+
+## Creating a map showing new cases
+
+```{python}
+# Create the choropleth map
+fig = px.choropleth(
+    prostate_new_cases,
+    locations="country_code",  # Column with ISO country codes
+    color="new_cases",  # Column with data to be visualized
+    hover_name="country",  # Column to display on hover
+    color_continuous_scale="Reds",  # Color scale
+    title="World Map showing Prostate cancer Number of New Cases in 2019",
+)
+
+# Update layout for better appearance, center the title, and adjust size
+fig.update_layout(
+    geo=dict(showframe=False, showcoastlines=True, projection_type="equirectangular"),
+    coloraxis_colorbar=dict(title="Number of Cases"),
+    title_x=0.5,  # Center the title
+    autosize=True,  # Enable autosizing for responsiveness
+)
+```
+
+
+# New cases vs deaths in 2019
+## Row {height="50%"}
+### Column {width="50%"}
+
+```{python}
+# Top 10 countries with highest new cases of prostate cancer in 2019
+top_10_new_cases = prostate_new_cases.nlargest(10, "new_cases")
+```
+
+```{python}
+fig1 = px.histogram(
+    top_10_new_cases,
+    x="country",
+    y="new_cases",
+    labels={"country": "Country", "new_cases": "Number of new cases"},
+    color="country",
+    text_auto=True,
+    title="Top 10 countries with the highest new cases of prostate cancer in 2019",
+)
+
+# Center-align the title
+fig1.update_layout(
+    title={
+        "text": "Top 10 countries with the highest new cases of prostate cancer in 2019",
+        "x": 0.5,  # Centers the title
+        "xanchor": "center",
+        "yanchor": "top",
+        "y": 0.99,  # Adjusts the vertical position of the title
+    },
+    yaxis_title="Number of new cases",  # Explicitly set the Y-axis label
+    showlegend=False,  # Remove the legend
+)
+```
+
+### Column {width="50%"}
+
+```{python}
+# Ten countries with least new cases of prostate cancer in 2019
+ten_least_country = prostate_new_cases.nsmallest(10, "new_cases")
+```
+
+**Ten countries with fewest new cases of prostate cancer in 2019**
+
+```{python}
+ten_least = ten_least_country.drop(columns=["country_code"])
+# Remove the index and add a serial number column
+ten_least.reset_index(drop=True)
+
+# Display title and dataset
+print(ten_least.insert(0, "Sn", range(1, 1 + len(ten_least))))
+```
+
+## Row {height="50%"}
+### Column {width="50%"}
+
+```{python}
+top_10_deaths = prostate_deaths.nlargest(10, "number_of_deaths")
+```
+
+```{python}
+fig2 = px.histogram(
+    top_10_deaths,
+    x="country",
+    y="number_of_deaths",
+    labels={"country": "Country", "number_of_deaths": "Number of deaths"},
+    color="country",
+    text_auto=True,
+    title="Top 10 countries with the highest deaths from prostate cancer in 2019",
+)
+
+# Center-align the title
+fig2.update_layout(
+    title={
+        "text": "Top 10 countries with the highest deaths from prostate cancer in 2019",
+        "x": 0.5,  # Centers the title
+        "xanchor": "center",
+        "yanchor": "top",
+        "y": 0.99,  # Adjusts the vertical position of the title
+    },
+    yaxis_title="Number of deaths",  # Explicitly set the Y-axis label
+    showlegend=False,  # Remove the legend
+)
+```
+
+### Column {width="50%"}
+
+```{python}
+ten_least_deaths = prostate_deaths.nsmallest(10, "number_of_deaths")
+```
+**Ten countries with fewest deaths of prostate cancer in 2019**
+
+```{python}
+ten_least_countries_deaths = ten_least_deaths.drop(columns=["country_code"])
+# Remove the index and add a serial number column
+ten_least_countries_deaths.reset_index(drop=True)
+
+# Display title and dataset
+print(
+    ten_least_countries_deaths.insert(
+        0, "Sn", range(1, 1 + len(ten_least_countries_deaths))
+    )
+)
+```
+
+# All countries Prostate Cancer data 2019
+## Merging New cases and Deaths datasets
+
+
+```{python}
+prostate_cancer = pd.merge(prostate_new_cases, prostate_deaths)
+prostate_cancer_2019 = prostate_cancer[
+    ["country_code", "country", "new_cases", "number_of_deaths"]
+]
+show(prostate_cancer_2019)
+# print(prostate_cancer_2019.to_string())
+```
